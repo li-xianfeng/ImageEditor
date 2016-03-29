@@ -4,6 +4,7 @@ function ImageEditor(imgopts){
         degree:-90,                     //默认旋转角度
         lineWeight:[5,10,15],           //马赛克画笔
         crossDomain:false,              //所编辑的图片是否是远程跨域图片
+        newSize:null,                   //number,编辑完成后按比率缩放到该尺寸
         editComplete:function(file) {   //编辑完成回调
             var newData = {
                 "Pic-Size":"0*0",
@@ -15,14 +16,13 @@ function ImageEditor(imgopts){
                 url: "http://upload.58cdn.com.cn/json",
                 type:'POST',
                 data:JSON.stringify(newData),
-                processData: false,  //告诉jQuery不要去处理发送的数据
-                success:function(url){
-                    var wholeUrl = "http://pic.58.com/p1/big/" + url;
-                    alert(wholeUrl);
-                    console.log(wholeUrl);
+                processData: false,  // 告诉jQuery不要去处理发送的数据
+                success:function(url){             
+                    var url = "http://pic.58.com/p1/big/" + url;
+                    alert(url)
                 },
                 error: function(XMLHttpRequest, textStatus, errorThrown) {
-                    alert(XMLHttpRequest.status+'&'+textStatus+'&'+errorThrown);
+                    _this.errorHandler(XMLHttpRequest.status+'&'+textStatus+'&'+errorThrown);
                 }
             });
         }
@@ -65,7 +65,7 @@ ImageEditor.prototype = {
 
         this.initSuccess = false;   //初始化未完成
 
-        this.resizeRate = 1;        //原图第一次缩放比,提交前还原尺寸
+        this.initSize = false;      //原图第一次缩放比,提交前还原尺寸
         
         this.clipOpenTime = null;
         this.clipCompleteTime = null;
@@ -422,6 +422,7 @@ ImageEditor.prototype = {
 
             //初始化时保存缩放比例用于上传前还原尺寸，小图不放大
             _this.resizeRate = _this.resetCanvas(this.naturalWidth,this.naturalHeight,false);
+            _this.initSize = (this.naturalWidth >= this.naturalHeight)?this.naturalWidth:this.naturalHeight;
 
             var canvas = _this.canvas;
 
@@ -514,34 +515,66 @@ ImageEditor.prototype = {
         $(canvas).css({'left':parseInt(widthDis/2)+'px','top':parseInt(heightDis/2)+'px'});
     },
     /**
-     * 调节图片到原尺寸大小并上传
+     * 调节图片到指定尺寸大小并上传
      */
     submitImage:function(){
         var _this = this,
             canvas =  _this.canvas,
-            resizeRate = _this.resizeRate,
+            currentSize = canvas.width >= canvas.height ? canvas.width : canvas.height,
+            newSize = _this.opts.newSize,
+            initSize = _this.initSize,
             newImgData = canvas.toDataURL('image/jpeg');
 
-        //若不是原图尺寸，还原大小再传
-        if(_this.resizeRate != 1){
-            var cvs = document.createElement('canvas');
-            cvs.width =  parseInt(canvas.width *resizeRate);
-            cvs.height =  parseInt(canvas.height * resizeRate);
-            var cxt = cvs.getContext('2d');
-
-            var _callback = function(){
-                cxt.drawImage(this,0,0,this.width,this.height,0,0,cvs.width,cvs.height);
-                newImgData = cvs.toDataURL('image/jpeg');
-                //必须回调上传
+        console.log(newImgData)
+        //设定图片尺寸再回调
+        if( typeof newSize === 'number' ){
+            if( newSize != currentSize ){
+                var _sizeObj = _this.getSizeObj(canvas.width, canvas.height, newSize);
+                _this.resetImgAfterEdit(newImgData, _sizeObj.width, _sizeObj.height);
+            }else{
                 _this.opts.editComplete(newImgData);
-                console.log(_this.editHistory,_this.currentEditObj);
-            };
-            _this.loadImg(newImgData,_callback);
+            }
+        }else if( initSize != currentSize ){
+            var _sizeObj = _this.getSizeObj(canvas.width, canvas.height, initSize);
+            _this.resetImgAfterEdit(newImgData, _sizeObj.width, _sizeObj.height);
         }else{
-            //原尺寸直接放大
+            //直接回调
             _this.opts.editComplete(newImgData);
-            console.log(_this.editHistory,_this.currentEditObj);
         }
+    },
+    /**
+     * 根据stdSize和原始宽高计算新图片size
+     * @param {Number} width [原始宽度]
+     * @param {Number} height [原始高度]
+     * @param {Number} stdSize [标准参考尺寸]
+     * @return {Object}  [新长宽数据]
+     */
+    getSizeObj:function(width, height, stdSize){
+        var w,h;
+        if(width >= height){
+            w = stdSize;
+            h = height*stdSize/width;
+        }else{
+            h = stdSize;
+            w = width*stdSize/height;
+        }
+        return {width:w, height:h};
+    },
+    /**
+     * 把图片调节到指定尺寸并执行回调
+     */
+    resetImgAfterEdit:function(imgData, newWidth, newHeight){
+        var _this = this, cvs = document.createElement('canvas'), cxt = cvs.getContext('2d');
+        cvs.width =  newWidth;
+        cvs.height =  newHeight;
+        
+        var _callback = function(){
+            cxt.drawImage(this,0,0,this.width,this.height,0,0,cvs.width,cvs.height);
+            newImgData = cvs.toDataURL('image/jpeg');
+            //必须回调上传
+            _this.opts.editComplete(newImgData);
+        };
+        _this.loadImg(imgData,_callback);
     },
     /**
      * 上传成功后根据新url替换缩略图和imglist中url

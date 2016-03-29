@@ -14,27 +14,18 @@
 
         $('#image').on('change',function(e){
             var imageFile = e.target.files[0];
-
-            var fd = new FileReader();
-
-            fd.onload = function(e){
-                var dataUrl = e.target.result;
-                console.log(dataUrl);
-
-                var editorConfig = {
-                    url:dataUrl,                    //原图url || dataUrl
-                    degree:-90,                     //默认旋转角度
-                    lineWeight:[5,10,15],           //马赛克画笔
-                };
-                
-                if(!editor){
-                    editor = new ImageEditor(editorConfig);
-                }else{
-                    editor.resetImgItem(editorConfig);
-                } 
+            var src = window.URL.createObjectURL(imageFile);
+            var editorConfig = {
+                url:src,                        //原图url || dataUrl
+                degree:-90,                     //默认旋转角度
+                lineWeight:[5,10,15],           //马赛克画笔
             };
             
-            fd.readAsDataURL(imageFile);
+            if(!editor){
+                editor = new ImageEditor(editorConfig);
+            }else{
+                editor.resetImgItem(editorConfig);
+            } 
         });
 
         
