@@ -1,2 +1,2 @@
 # ImageEditor
-a image editor base on canvas
+A image editor based on canvas
